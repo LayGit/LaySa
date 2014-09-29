@@ -1,0 +1,31 @@
+{
+  "name": "sa",
+  "version": "0.0.1",
+  "description": "A nodejs lib for Nodejser to quickly build API.",
+  "main": "Lay.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LayGit/LaySa/src"
+  },
+  "keywords": [
+    "nodejs",
+    "api",
+    "server"
+  ],
+  "author": "Lay",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/LayGit/LaySa/issues"
+  },
+  "homepage": "https://github.com/LayGit/LaySa",
+  "dependencies": {
+    "vm": "0.0.1",
+    "journey": "^0.4.0-pre-3",
+    "tracer": "^0.7.3",
+    "mysql": "^2.5.1",
+    "howdo": "^1.1.2"
+  }
+}
