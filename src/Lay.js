@@ -154,7 +154,7 @@ var logger = require("tracer");
             }).follow(function(err){
                 if (!err)
                 {
-                    handler(Lay.http.params);
+                    handler(Lay.http.params, Lay.http.method);
                 }
             });
         }
