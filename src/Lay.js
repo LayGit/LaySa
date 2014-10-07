@@ -33,14 +33,45 @@ var logger = require("tracer");
         return require(path.join(__dirname, module));
     };
 
+    Lay.OutType = {
+        JSON:0,
+        XML:1,
+        TEXT:2,
+        HTML:3
+    };
+
     /**
      * 标准输出
      * @param result    结果
      * @param type      结果类型 Lay.OutType
+     * @param charset   编码 默认UTF-8
      */
-    Lay.out = function(result, type){
+    Lay.out = function(result, type, charset){
         if (Lay.http.response)
-            Lay.http.response.sendBody(JSON.stringify(result));
+        {
+            var _header = {"Content-Type":"text/plain"};
+            if (type)
+            {
+                switch (type)
+                {
+                    case Lay.OutType.JSON:
+                        result = JSON.stringify(result);
+                        _header["Content-Type"] = "application/json";
+                        break;
+                    case Lay.OutType.XML:
+                        _header["Content-Type"] = "text/xml";
+                        break;
+                    case Lay.OutType.HTML:
+                        _header["Content-Type"] = "text/html";
+                        break;
+                }
+            }
+
+            charset = charset ? charset : "UTF-8";
+            _header["Content-Type"] += ";charset=" + charset;
+
+            Lay.http.response.send(200, _header, result);
+        }
     };
 
     /**
@@ -49,12 +80,12 @@ var logger = require("tracer");
      * @param data
      * @param message
      */
-    Lay.outCDM = function(code, data, message){
+    Lay.outCDM = function(code, data, message, charset){
         Lay.out({
             code: code,
             data: data,
             message: message
-        }, Lay.OutType.JSON);
+        }, Lay.OutType.JSON, charset);
     };
 
     /**
@@ -137,12 +168,6 @@ var logger = require("tracer");
         GET:0,
         POST:1,
         BOTH:2
-    };
-
-    Lay.OutType = {
-        JSON:0,
-        XML:1,
-        TEXT:2
     };
 
     function bindRequest(config, method, req, res, params){
