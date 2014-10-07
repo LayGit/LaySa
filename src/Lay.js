@@ -123,12 +123,7 @@ var logger = require("tracer");
             }).follow(function(err){
                 if (!err)
                 {
-                    var _thisObj = {
-                        Result:function(data){
-                            // 根据映射配置映射结果
-                        }
-                    };
-                    handler.apply(_thisObj, Lay.http.params);
+                    handler(Lay.http.params);
                 }
             });
         }
@@ -379,11 +374,11 @@ var logger = require("tracer");
             else
             {
                 router.map(function(){
-                    this.get(config.routerMap).bind(function(req, res, id, params){
+                    this.get(config.routerMap).bind(function(req, res, params){
                         bindRequest.apply(this, [config,Lay.PostMethod.GET, req, res, params]);
                     });
 
-                    this.post(config.routerMap).bind(function(req, res, id, params){
+                    this.post(config.routerMap).bind(function(req, res, params){
                         bindRequest.apply(this, [config,Lay.PostMethod.POST, req, res, params]);
                     });
                 });
