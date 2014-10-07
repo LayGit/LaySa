@@ -161,7 +161,7 @@ var logger = require("tracer");
     };
 
     Lay.Interceptor = function(handler){
-        handler(Lay.http.params);
+        handler(Lay.http.params, Lay.http.method);
     };
 
     Lay.PostMethod = {
