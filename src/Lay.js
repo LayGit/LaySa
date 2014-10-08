@@ -11,10 +11,9 @@ var object = require("./Lib/Util/Object");
 var logger = require("tracer");
 (function(){
     // 声明全局Lay对象
-    var Lay = this.Lay = {};
-
-    // 配置
-    Lay.Config = {};
+    var Lay = this.Lay = {
+        Config:{}
+    };
 
     // 模型缓存
     var modelCache = Lay.Model = {};
@@ -26,6 +25,16 @@ var logger = require("tracer");
     }
     var isFunction = isType("Function"),
         isString = isType("String");
+
+    // require in sandbox
+    var myRequire = function(_module){
+        try{
+            return require(_module);
+        }
+        catch (e){
+            return require(path.join(Lay.Config.path.root, _module));
+        }
+    };
 
     Lay.logger = logger.colorConsole();
 
@@ -137,7 +146,7 @@ var logger = require("tracer");
                         fs.readFile(_fPath, function(err, data){
                             var sandbox = {
                                 Lay: Lay,
-                                require:require,
+                                require:myRequire,
                                 Howdo:Howdo,
                                 Done:_done
                             };
@@ -193,7 +202,7 @@ var logger = require("tracer");
         // 传入的沙箱对象
         var sandbox = {
             Lay: Lay,
-            require:require,
+            require:myRequire,
             Howdo:Howdo
         };
 
