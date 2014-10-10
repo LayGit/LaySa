@@ -26,20 +26,32 @@ var logger = require("tracer");
     var isFunction = isType("Function"),
         isString = isType("String");
 
-    // require in sandbox
-    var myRequire = function(_module){
+    Lay.logger = logger.colorConsole();
+
+    Lay.using = function(module){
+        module = module.replace(/\./g, '/');
+        if (!/.\.js$/.test(module))
+            module += ".js";
+        return require(path.join(__dirname, 'Lib', module));
+    };
+
+    Lay.include = function(_module){
         try{
             return require(_module);
         }
         catch (e){
-            return require(path.join(Lay.Config.path.root, _module));
+            return require(getRealPath(_module));
         }
     };
 
-    Lay.logger = logger.colorConsole();
-
-    Lay.using = function(module){
-        return require(path.join(__dirname, module));
+    /**
+     * 获取相对于项目根路径的真实路径
+     * @param path        相对路径
+     * @returns {string}
+     */
+    var getRealPath = Lay.getRealPath = function(rPath)
+    {
+        return path.join(Lay.Config.path.root, rPath);
     };
 
     Lay.OutType = {
@@ -125,7 +137,7 @@ var logger = require("tracer");
         function execute()
         {
             var _arrInterceptors,
-                _iPath = path.join(Lay.Config.path.root, Lay.Config.path.interceptor);
+                _iPath = getRealPath(Lay.Config.path.interceptor);
             // 分析拦截器
             if(interceptor)
             {
@@ -146,8 +158,6 @@ var logger = require("tracer");
                         fs.readFile(_fPath, function(err, data){
                             var sandbox = {
                                 Lay: Lay,
-                                require:myRequire,
-                                Howdo:Howdo,
                                 Done:_done
                             };
                             // 进入沙箱执行
@@ -201,9 +211,7 @@ var logger = require("tracer");
 
         // 传入的沙箱对象
         var sandbox = {
-            Lay: Lay,
-            require:myRequire,
-            Howdo:Howdo
+            Lay: Lay
         };
 
         fs.exists(infPath, function(exsist){
@@ -268,11 +276,10 @@ var logger = require("tracer");
 
         if (config.path.log)
         {
-            var _fileLogger = logger.console({root:path.join(config.path.root, config.path.log)});
             Lay.logger = logger.colorConsole({
                 transport:function(data){
                     console.log(data.output);
-                    var _logPath = path.join(config.path.root, config.path.log);
+                    var _logPath = getRealPath(config.path.log);
                     var _today = new Date(),
                         _fileName = dateFormat(_today, "yyyyMMdd") + "." + data.title + ".log",
                         output = data.timestamp + " <" + data.title + "," + data.level + "> " + data.file + ":" + data.line + ":" + data.pos + " | " + data.message;
@@ -301,7 +308,7 @@ var logger = require("tracer");
                     // 处理conf.db
                     if (isString(conf.db))
                     {
-                        var _path = path.join(config.path.root, conf.db);
+                        var _path = getRealPath(conf.db);
                         getJSON(_path, function(_json){
                             if (_json)
                                 Lay.Config.Database = _json;
@@ -329,7 +336,7 @@ var logger = require("tracer");
         }).task(function(done){
             Lay.logger.debug("开始读取数据模型...");
             // 载入model
-            var mpath = path.join(config.path.root, config.path.model);
+            var mpath = getRealPath(config.path.model);
 
             function formatClsName(n)
             {
@@ -436,8 +443,8 @@ var logger = require("tracer");
 
             if (config.ssl)
             {
-                config.ssl.key = fs.readFileSync(path.join(config.path.root, config.ssl.key));
-                config.ssl.cert = fs.readFileSync(path.join(config.path.root, config.ssl.cert));
+                config.ssl.key = fs.readFileSync(getRealPath(config.ssl.key));
+                config.ssl.cert = fs.readFileSync(getRealPath(config.ssl.cert));
                 _server = https.createServer(config.ssl, _handler);
                 _tip = "(https)";
             }
