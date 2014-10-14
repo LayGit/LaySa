@@ -28,13 +28,23 @@ var logger = require("tracer");
 
     Lay.logger = logger.colorConsole();
 
-    Lay.using = function(module){
-        module = module.replace(/\./g, '/');
-        if (!/.\.js$/.test(module))
-            module += ".js";
-        return require(path.join(__dirname, 'Lib', module));
+    /**
+     * 引用Lay类库模块
+     * @param ns    命名空间路径 '/' to '.'
+     * @returns {*}
+     */
+    Lay.using = function(ns){
+        ns = ns.replace(/\./g, '/');
+        if (!/.\.js$/.test(ns))
+            ns += ".js";
+        return require(path.join(__dirname, 'Lib', ns));
     };
 
+    /**
+     * 引用相对于项目根路径的模块
+     * @param _module
+     * @returns {*}
+     */
     Lay.include = function(_module){
         try{
             return require(_module);
@@ -46,19 +56,41 @@ var logger = require("tracer");
 
     /**
      * 获取相对于项目根路径的真实路径
-     * @param path        相对路径
      * @returns {string}
      */
-    var getRealPath = Lay.getRealPath = function(rPath)
+    var getRealPath = Lay.getRealPath = function()
     {
-        return path.join(Lay.Config.path.root, rPath);
+        return path.join(Lay.Config.path.root, path.join.apply(this, arguments));
     };
 
+    /**
+     * 获取项目配置文件
+     * @type {getConfig}
+     */
+    var getConfig = Lay.getConfig = function(confName)
+    {
+        confName = /\.json$/.test(confName.toLowerCase()) ? confName : confName + ".json";
+        var _confPath = getRealPath(Lay.Config.path.conf, confName);
+        try
+        {
+            return JSON.parse(fs.readFileSync(_confPath, 'utf-8'));
+        }
+        catch (e)
+        {
+            Lay.logger.warn("配置文件载入失败:" + _confPath);
+        }
+    };
+
+    /**
+     * 输出类型
+     * @type {{JSON: number, XML: number, TEXT: number, HTML: number, CSS: number}}
+     */
     Lay.OutType = {
         JSON:0,
         XML:1,
         TEXT:2,
-        HTML:3
+        HTML:3,
+        CSS:4
     };
 
     /**
@@ -84,6 +116,9 @@ var logger = require("tracer");
                         break;
                     case Lay.OutType.HTML:
                         _header["Content-Type"] = "text/html";
+                        break;
+                    case Lay.OutType.CSS:
+                        _header["Content-Type"] = "text/css'";
                         break;
                 }
             }
@@ -230,25 +265,14 @@ var logger = require("tracer");
         });
     }
 
-    function getJSON(filePath, callback)
+    Lay.getConn = function (dbconf, dbname)
     {
-        fs.exists(filePath, function(exsist){
-            if (exsist)
-            {
-                fs.readFile(filePath, function(err, data){
-                    callback(JSON.parse(data), err);
-                });
-            }
-            else
-            {
-                callback(null, "文件不存在");
-            }
-        });
-    }
-
-    Lay.getConn = function (dbname)
-    {
-        return new MySql(Lay.Config.Database[dbname]);
+        var _db;
+        if (isString(dbconf))
+            _db = getConfig(dbconf);
+        else
+            _db = dbconf;
+        return new MySql(_db[dbname]);
     };
 
     Lay.server = function(config){
@@ -258,12 +282,10 @@ var logger = require("tracer");
             path:{
                 // 根路径
                 root:path.dirname(module.parent.filename),
-                // 接口控制层
+                // 配置文件
+                conf:"config",
+                // 接口
                 controller:"controller",
-                // 模型层
-                model:"model",
-                // 数据层
-                data:"data",
                 // 拦截器
                 interceptor:"interceptor",
                 // 监听路径路由
@@ -296,114 +318,56 @@ var logger = require("tracer");
 
 
         Howdo.task(function(done){
-            Lay.logger.debug("开始读取配置文件...");
-            // 读取配置文件
-            if (config.conf)
-            {
-                var conf = config.conf;
+            // 配置监测
+            Lay.logger.debug("项目配置检测...");
 
-                if (conf.db)
+
+            var _confPath = getRealPath(config.path.conf),
+                _incptPath = getRealPath(config.path.interceptor),
+                _ctrlPath = getRealPath(config.path.controller);
+
+            // 配置文件
+            if (_confPath)
+            {
+                Lay.logger.debug("检查配置文件目录...");
+                if (fs.existsSync(_confPath))
                 {
-                    Lay.logger.debug("开始读取数据库配置...");
-                    // 处理conf.db
-                    if (isString(conf.db))
-                    {
-                        var _path = getRealPath(conf.db);
-                        getJSON(_path, function(_json){
-                            if (_json)
-                                Lay.Config.Database = _json;
-                            Lay.logger.debug("数据库配置:" + _path);
-                            done(null);
-                        });
-                    }
-                    else
-                    {
-                        //直接挂载
-                        Lay.Config.Database = conf.db;
-                        Lay.logger.debug("数据库配置:直接挂载");
-                        done(null);
-                    }
+                    Lay.logger.debug("配置文件目录正常,数量:" + fs.readdirSync(_confPath).length);
                 }
                 else
                 {
-                    done(null);
+                    Lay.logger.warn("配置文件目录不存在！");
                 }
             }
-            else
-            {
-                done(null);
-            }
-        }).task(function(done){
-            Lay.logger.debug("开始读取数据模型...");
-            // 载入model
-            var mpath = getRealPath(config.path.model);
 
-            function formatClsName(n)
+            // 拦截器
+            if (_incptPath)
             {
-                n = n.toLowerCase();
-                return n.replace(/\b(\w)|\s(\w)/g,function(m){return m.toUpperCase()});
-            }
-
-            fs.readdir(mpath, function(err, files){
-                if (err)
+                if (fs.existsSync(_incptPath))
                 {
-                    Lay.logger.warn("载入Model失败:" + err);
-                    done(null);
+                    Lay.logger.debug("拦截器文件目录正常,数量:" + fs.readdirSync(_incptPath).length);
                 }
                 else
                 {
-                    var _dIndex = 0,
-                        _fIndex = 0;
-                    files.forEach(function(item){
-                        _dIndex++;
-                        var tmpPath = mpath + '/' + item;
-                        if (tmpPath.indexOf("svn") < 0)
-                        {
-                            fs.stat(tmpPath, function(_err, _stat){
-                                if (_stat.isDirectory())
-                                {
-                                    fs.readdir(tmpPath, function(err1, subfiles){
-                                        if (err1)
-                                        {
-                                            Lay.logger.error("Model载入失败!");
-                                            done(null);
-                                        }
-                                        else
-                                        {
-                                            _fIndex = 0;
-                                            subfiles.forEach(function(subitem){
-                                                _fIndex++;
-                                                var _mPath = tmpPath + '/' + subitem;
-                                                fs.stat(_mPath, function(err1, stats)
-                                                {
-                                                    if (err1)
-                                                        console.logger.error("错误的Model模块:" + _mPath);
-                                                    else
-                                                    {
-                                                        if (!stats.isDirectory())
-                                                        {
-                                                            Lay.logger.debug("读取数据模型:" + _mPath);
-                                                            var _sPath = _mPath.replace(mpath, "").split('/');
-                                                            var _parent = _sPath[1],
-                                                                _key = _sPath[2].replace(".js", "");
-                                                            var _clsName = formatClsName(_parent) + formatClsName(_key);
-                                                            modelCache[_clsName] = require(_mPath).model;
-
-                                                            // 全部载入完成
-                                                            if (_dIndex == files.length && _fIndex == subfiles.length)
-                                                                done(null);
-                                                        }
-                                                    }
-                                                });
-                                            });
-                                        }
-                                    });
-                                }
-                            });
-                        }
-                    });
+                    Lay.logger.warn("拦截器文件目录不存在！");
                 }
-            });
+            }
+
+            // 接口
+            if (_ctrlPath)
+            {
+                if (fs.existsSync(_ctrlPath))
+                {
+                    Lay.logger.debug("接口文件目录正常,数量:" + fs.readdirSync(_ctrlPath).length);
+                }
+                else
+                {
+                    Lay.logger.warn("接口文件目录不存在！");
+                }
+            }
+
+            Lay.logger.debug("项目配置检测完毕！");
+            done(null);
 
         }).together(function(err){
             Lay.logger.debug("创建监听服务...");
