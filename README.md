@@ -1,6 +1,6 @@
 [![NPM version][npm-img]][npm-url]
 [![License][license-img]][license-url]
-[![Release][release-img][release-url]]
+[![Release][release-img]][release-url]
 
 ### LaySa
 A nodejs lib for Nodejser to quickly build API.
