@@ -1,27 +1,36 @@
 var mysql = require("mysql");
 
-var MySql = function(config){
-    this.pool = mysql.createPool(config);
-    if (config.logger)
-        this.logger = config.logger;
+var poolCluster = mysql.createPoolCluster();
+var _ids = {};
+
+var MySql = function(id, config){
+    if (!_ids[id])
+    {
+        poolCluster.add(id, config);
+        _ids[id] = true;
+    }
+    this.id = id;
+    this.logger = config.logger;
 };
 
 MySql.prototype = {
-    escape:function(str){
-        return this.pool.escape(str);
-    },
-    log:function(msg){
-        if (this.logger)
-            this.logger(msg);
+    log:function(msg, level){
+        if (this.logger && this.logger[level])
+            this.logger[level](msg);
+        else
+            console.log(msg);
     },
     query:function(queryString, callback){
         var that = this;
-        this.pool.getConnection(function(err, conn){
-            that.log(queryString);
-            conn.query(queryString, function(err, rows, fields){
-                if (callback)
-                    callback(err, rows, fields);
+        poolCluster.getConnection(that.id, function(err1, conn){
+            if (err1)
+                that.log(err1, 'error');
+            conn.query(queryString, function(err2, rows, fields){
                 conn.release();
+                if (err2)
+                    that.log(err2, 'error');
+                if (callback)
+                    callback.apply(this, arguments);
             });
         });
         return this;
@@ -46,13 +55,11 @@ MySql.prototype = {
         // table
         queryString += " from " + config.table;
 
-        // where
-        if (config.where)
-            queryString += " where " + config.where;
+        //where
+        queryString += objToEqualString(config.where, " where ", " and ");
 
         // order by
-        if (config.orderBy)
-            queryString += " order by " + config.orderBy;
+        queryString += objToEqualString(config.orderBy, " order by ", ",");
 
         // limit
         if (config.limit)
@@ -65,12 +72,18 @@ MySql.prototype = {
         config = config || {};
         var queryString = "update " + config.table;
 
-        //set
-        queryString += objToEqualString(" set", config.set);
+        // set
+        queryString += objToEqualString(config.set, " set ", ",");
 
         //where
-        if (config.where)
-            queryString += config.where;
+        queryString += objToEqualString(config.where, " where ", " and ");
+
+        // order by
+        queryString += objToEqualString(config.orderBy, " order by ", ",");
+
+        //limit
+        if (config.limit)
+            queryString += " limit " + config.limit;
 
         return this.query(queryString, config.complete);
     },
@@ -183,39 +196,48 @@ MySql.prototype = {
         }
         return this;
     },
-    remove:function(config){
+    del:function(config){
         config = config || {};
         var queryString = "delete from " + config.table;
 
-        if (config.where)
-            queryString += " where " + config.where;
+        //where
+        queryString += objToEqualString(config.where, " where ", " and ");
 
-        if (config.orderBy)
-            queryString += " order by " + config.orderBy;
+        // order by
+        queryString += objToEqualString(config.orderBy, " order by ", ",");
 
         if (config.limit)
             queryString += " limit " + config.limit;
 
         return this.query(queryString, config.complete);
+    },
+    addOrUpdate:function(config){
+        config = config || {};
     }
 };
 
-function objToEqualString(prefix, obj)
+function objToEqualString(obj, pf, sp)
 {
-    var retVal = "";
-    if (obj && isString(obj))
+    var equalStr = "",
+        pf = pf || "",
+        sp = sp || ",";
+
+    if (obj)
     {
-        retVal = " set " + obj;
-    }
-    else if (obj && isObject(obj))
-    {
-        for (var k in obj)
+        if (isString(obj))
+            equalStr = pf + obj;
+        else
         {
-            retVal == "" ? retVal += " " + prefix + " " : retVal += ",";
-            retVal += k + " = '" + obj[k] + "'";
+            for (var key in obj)
+            {
+                if (equalStr != "")
+                    equalStr += sp;
+                equalStr += key + "='" + obj[key] + "'";
+            }
+            equalStr = pf + equalStr;
         }
     }
-    return retVal;
+    return equalStr;
 }
 
 function arrayToString(arr, quotes)

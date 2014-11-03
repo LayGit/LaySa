@@ -31,19 +31,16 @@
  *   >>> Math.uuid(8, 16) // 8 character ID (base=16)
  *   "098F4D35"
  */
-var math = (function() {
-    var Math = {};
-
-    // Private array of chars to use
-    var CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split('');
-
-    Math.uuid = function (len, radix) {
+// Private array of chars to use
+var CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split('');
+var math = {
+    uuid: function (len, radix) {
         var chars = CHARS, uuid = [], i;
         radix = radix || chars.length;
 
         if (len) {
             // Compact form
-            for (i = 0; i < len; i++) uuid[i] = chars[0 | Math.random()*radix];
+            for (i = 0; i < len; i++) uuid[i] = chars[0 | Math.random() * radix];
         } else {
             // rfc4122, version 4 form
             var r;
@@ -56,59 +53,53 @@ var math = (function() {
             // per rfc4122, sec. 4.1.5
             for (i = 0; i < 36; i++) {
                 if (!uuid[i]) {
-                    r = 0 | Math.random()*16;
+                    r = 0 | Math.random() * 16;
                     uuid[i] = chars[(i == 19) ? (r & 0x3) | 0x8 : r];
                 }
             }
         }
 
         return uuid.join('');
-    };
-
-    // A more performant, but slightly bulkier, RFC4122v4 solution.  We boost performance
-    // by minimizing calls to random()
-    Math.uuidFast = function() {
-        var chars = CHARS, uuid = new Array(36), rnd=0, r;
+    },
+    uuidFast: function () {
+        var chars = CHARS, uuid = new Array(36), rnd = 0, r;
         for (var i = 0; i < 36; i++) {
-            if (i==8 || i==13 ||  i==18 || i==23) {
+            if (i == 8 || i == 13 || i == 18 || i == 23) {
                 uuid[i] = '-';
-            } else if (i==14) {
+            } else if (i == 14) {
                 uuid[i] = '4';
             } else {
-                if (rnd <= 0x02) rnd = 0x2000000 + (Math.random()*0x1000000)|0;
+                if (rnd <= 0x02) rnd = 0x2000000 + (Math.random() * 0x1000000) | 0;
                 r = rnd & 0xf;
                 rnd = rnd >> 4;
                 uuid[i] = chars[(i == 19) ? (r & 0x3) | 0x8 : r];
             }
         }
         return uuid.join('');
-    };
-
-    // A more compact, but less performant, RFC4122v4 solution:
-    Math.uuidCompact = function() {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-            var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
+    }, uuidCompact: function () {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
             return v.toString(16);
         });
-    };
+    }
+};
 
-    return Math;
-})();
+function replaceSign(rs)
+{
+    return rs.replace(/\-/g, '');
+}
 
 exports.get = math.uuid;
-exports.getNosign = function(){
-    var rs = math.uuid.apply(this, arguments);
-    return rs.replace('-', '');
+exports.getNoSign = function () {
+    return replaceSign(math.uuid.apply(this, arguments));
 };
 
 exports.getFast = math.uuidFast;
-exports.getFastNoSign = function(){
-    var rs = math.uuidFast.apply(this, arguments);
-    return rs.replace('-', '');
+exports.getFastNoSign = function () {
+    return replaceSign(math.uuidFast.apply(this, arguments));
 };
 
 exports.getCompact = math.uuidCompact;
-exports.getCompactNoSign = function(){
-    var rs = math.uuidCompact.apply(this, arguments);
-    return rs.replace('-', '');
+exports.getCompactNoSign = function () {
+    return replaceSign(math.uuidCompact.apply(this, arguments));
 };

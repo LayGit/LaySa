@@ -1,22 +1,18 @@
+var object = require("./Lib/Util/Object");
+var LayLine = require("./LayLine").Instance;
+var dateFormat = require("./Lib/Util/DateFormat").format;
 var http = require("http");
 var https = require("https");
-var vm = require("vm");
-var journey = require("journey");
 var fs = require("fs");
 var path = require("path");
 var Howdo = require("howdo");
-var MySql = require("./Lib/Data/MySql").Instance;
-var dateFormat = require("./Lib/Util/DateFormat").format;
-var object = require("./Lib/Util/Object");
 var logger = require("tracer");
+var journey = require("journey");
 (function(){
-    // 声明全局Lay对象
     var Lay = this.Lay = {
-        Config:{}
+        Config:{},
+        logger:logger.colorConsole()
     };
-
-    // 模型缓存
-    var modelCache = Lay.Model = {};
 
     function isType(type) {
         return function(obj) {
@@ -26,253 +22,17 @@ var logger = require("tracer");
     var isFunction = isType("Function"),
         isString = isType("String");
 
-    Lay.logger = logger.colorConsole();
-
     /**
-     * 引用Lay类库模块
-     * @param ns    命名空间路径 '/' to '.'
-     * @returns {*}
+     * 接口请求类型
+     * @type {{GET: number, POST: number, BOTH: number, PUT: number, DELETE: number, ALL: number}}
      */
-    Lay.using = function(ns){
-        ns = ns.replace(/\./g, '/');
-        if (!/.\.js$/.test(ns))
-            ns += ".js";
-        return require(path.join(__dirname, 'Lib', ns));
-    };
-
-    /**
-     * 引用相对于项目根路径的模块
-     * @param _module
-     * @returns {*}
-     */
-    Lay.include = function(_module){
-        try{
-            return require(_module);
-        }
-        catch (e){
-            return require(getRealPath(_module));
-        }
-    };
-
-    /**
-     * 获取相对于项目根路径的真实路径
-     * @returns {string}
-     */
-    var getRealPath = Lay.getRealPath = function()
-    {
-        return path.join(Lay.Config.path.root, path.join.apply(this, arguments));
-    };
-
-    /**
-     * 获取项目配置文件
-     * @type {getConfig}
-     */
-    var getConfig = Lay.getConfig = function(confName)
-    {
-        confName = /\.json$/.test(confName.toLowerCase()) ? confName : confName + ".json";
-        var _confPath = getRealPath(Lay.Config.path.conf, confName);
-        try
-        {
-            return JSON.parse(fs.readFileSync(_confPath, 'utf-8'));
-        }
-        catch (e)
-        {
-            Lay.logger.warn("配置文件载入失败:" + _confPath);
-        }
-    };
-
-    /**
-     * 输出类型
-     * @type {{JSON: number, XML: number, TEXT: number, HTML: number, CSS: number}}
-     */
-    Lay.OutType = {
-        JSON:0,
-        XML:1,
-        TEXT:2,
-        HTML:3,
-        CSS:4
-    };
-
-    /**
-     * 标准输出
-     * @param result    结果
-     * @param type      结果类型 Lay.OutType
-     * @param charset   编码 默认UTF-8
-     */
-    Lay.out = function(result, type, charset){
-        if (Lay.http.response)
-        {
-            var _header = {"Content-Type":"text/plain"};
-            if (type)
-            {
-                switch (type)
-                {
-                    case Lay.OutType.JSON:
-                        result = JSON.stringify(result);
-                        _header["Content-Type"] = "application/json";
-                        break;
-                    case Lay.OutType.XML:
-                        _header["Content-Type"] = "text/xml";
-                        break;
-                    case Lay.OutType.HTML:
-                        _header["Content-Type"] = "text/html";
-                        break;
-                    case Lay.OutType.CSS:
-                        _header["Content-Type"] = "text/css'";
-                        break;
-                }
-            }
-
-            charset = charset ? charset : "UTF-8";
-            _header["Content-Type"] += ";charset=" + charset;
-
-            Lay.http.response.send(200, _header, result);
-        }
-    };
-
-    /**
-     * CDM输出
-     * @param code
-     * @param data
-     * @param message
-     */
-    Lay.outCDM = function(code, data, message, charset){
-        Lay.out({
-            code: code,
-            data: data,
-            message: message
-        }, Lay.OutType.JSON, charset);
-    };
-
-    /**
-     * 接口申明函数
-     * @param method    调用方法 GET/POST
-     * @param intercept 拦截器
-     * @param handler   处理函数
-     */
-    Lay.interface = function(method, interceptor, handler){
-        if (arguments.length == 1 && isFunction(method))
-        {
-            handler = method;
-            method = Lay.PostMethod.BOTH;
-        }
-        else if (arguments.length == 2 && isFunction(interceptor))
-        {
-            handler = interceptor;
-            interceptor = null;
-        }
-
-        if (method == Lay.PostMethod.BOTH)
-            execute();
-        else if (method == Lay.http.method)
-            execute();
-        else
-            Lay.out({message:"错误的请求"});
-
-        function execute()
-        {
-            var _arrInterceptors,
-                _iPath = getRealPath(Lay.Config.path.interceptor);
-            // 分析拦截器
-            if(interceptor)
-            {
-                if (isString(interceptor))
-                    _arrInterceptors = [interceptor];
-                else
-                    _arrInterceptors = interceptor;
-            }
-
-            Howdo.each(_arrInterceptors, function(key, val, next, data){
-                var _fPath = path.join(_iPath, val + ".js");
-                fs.exists(_fPath, function(exsist){
-                    if (exsist)
-                    {
-                        var _done = function(){
-                            next(null, true);
-                        };
-                        fs.readFile(_fPath, function(err, data){
-                            var sandbox = {
-                                Lay: Lay,
-                                Done:_done
-                            };
-                            // 进入沙箱执行
-                            vm.runInNewContext(data, sandbox, 'myfile.vm');
-                        });
-                    }
-                    else
-                    {
-                        Lay.logger.warn("未找到拦截器文件:" + _fPath);
-                        Lay.out({message:"内部错误"});
-                    }
-                });
-            }).follow(function(err){
-                if (!err)
-                {
-                    handler(Lay.http.params, Lay.http.method);
-                }
-            });
-        }
-    };
-
-    Lay.Interceptor = function(handler){
-        handler(Lay.http.params, Lay.http.method);
-    };
-
-    Lay.PostMethod = {
+    Lay.CallType = {
         GET:0,
         POST:1,
-        BOTH:2
-    };
-
-    function bindRequest(config, method, req, res, params){
-        var urlPath = this.request.url.pathname;
-
-        Lay.logger.info("收到请求:" + urlPath + " | 参数:" + JSON.stringify(params));
-
-        Lay.http = {
-            request:req,
-            response:res,
-            method:method,
-            params:params
-        };
-
-        if (urlPath.indexOf('.') > -1)
-        {
-            Lay.logger.warn("错误的接口地址:" + urlPath);
-            Lay.out({message:"错误的请求"});
-            return;
-        }
-        var infPath = path.join(config.path.root, config.path.controller, urlPath + ".js");
-
-        // 传入的沙箱对象
-        var sandbox = {
-            Lay: Lay
-        };
-
-        fs.exists(infPath, function(exsist){
-            if (exsist)
-            {
-                fs.readFile(infPath, function(err, data){
-                    // 进入沙箱执行
-                    vm.runInNewContext(data, sandbox, 'myfile.vm');
-                });
-            }
-            else
-            {
-                Lay.logger.warn("未找到接口文件:" + infPath);
-                Lay.out({message:"错误的请求"});
-            }
-        });
-    }
-
-    Lay.getConn = function (dbconf, dbname)
-    {
-        var _db;
-        if (isString(dbconf))
-            _db = getConfig(dbconf);
-        else
-            _db = dbconf;
-        return new MySql(_db[dbname]);
+        BOTH:2,
+        PUT:3,
+        DELETE:4,
+        ALL:5
     };
 
     Lay.server = function(config){
@@ -296,6 +56,9 @@ var logger = require("tracer");
         object.extend(config, _config);
         Lay.Config = config;
 
+        /**
+         * 日志服务
+         */
         if (config.path.log)
         {
             Lay.logger = logger.colorConsole({
@@ -380,11 +143,19 @@ var logger = require("tracer");
             {
                 router.map(function(){
                     this.get(config.routerMap).bind(function(req, res, params){
-                        bindRequest.apply(this, [config,Lay.PostMethod.GET, req, res, params]);
+                        newLine(config, Lay.CallType.GET, req, res, params);
                     });
 
                     this.post(config.routerMap).bind(function(req, res, params){
-                        bindRequest.apply(this, [config,Lay.PostMethod.POST, req, res, params]);
+                        newLine(config, Lay.CallType.POST, req, res, params);
+                    });
+
+                    this.put(config.routerMap).bind(function(req, res, params){
+                        newLine(config, Lay.CallType.PUT, req, res, params);
+                    });
+
+                    this.del(config.routerMap).bind(function(req, res, params){
+                        newLine(config, Lay.CallType.DELETE, req, res, params);
                     });
                 });
             }
@@ -422,5 +193,29 @@ var logger = require("tracer");
             config.host ? _server.listen(config.port, config.host) : _server.listen(config.port);
             Lay.logger.debug(_tip + "服务启动成功 " + _server.address().address + ":" + config.port);
         });
+    };
+
+    function newLine(config, calltype, req, res, params)
+    {
+        if (req.url.pathname.trim() != "")
+        {
+            var _http = {
+                request:req,
+                response:res,
+                calltype:calltype,
+                params:params
+            }
+            return new LayLine(config, _http, Lay.logger);
+        }
+        return null;
+    }
+
+    /**
+     * 获取相对于项目根路径的真实路径
+     * @returns {string}
+     */
+    function getRealPath()
+    {
+        return path.join(Lay.Config.path.root, path.join.apply(this, arguments));
     };
 })();
