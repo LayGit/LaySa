@@ -8,6 +8,7 @@ A nodejs lib for Nodejser to quickly build API.
 ### Install
 ```bash
 npm install sa
+```
 
 [npm-img]: https://img.shields.io/npm/v/sa.svg?style=flat-square
 [npm-url]: https://npmjs.org/package/sa
