@@ -1,6 +1,6 @@
 {
   "name": "sa",
-  "version": "0.2.10",
+  "version": "0.2.15",
   "description": "A nodejs lib for Nodejser to quickly build API.",
   "main": "Lay.js",
   "scripts": {
@@ -15,7 +15,9 @@
     "api",
     "server"
   ],
-  "author": "Lay",
+  "author": {
+    "name": "Lay"
+  },
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/LayGit/LaySa/issues"
@@ -27,5 +29,8 @@
     "tracer": "^0.7.3",
     "mysql": "^2.5.1",
     "howdo": "^1.1.2"
-  }
+  },
+  "readme": "ERROR: No README data found!",
+  "_id": "sa@0.2.15",
+  "_from": "sa@0.2.15"
 }

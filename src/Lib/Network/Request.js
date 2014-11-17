@@ -17,22 +17,23 @@ function json2querystr(data)
 function run(config){
     // 分析url
     var regex = /([a-zA-Z]+):\/\/([\.A-Za-z0-9_-]+):?([0-9]+)?([\/\.A-Za-z0-9_-]+)?/;
-    var mathed = config.url.match(regex);
+    var matched = config.url.match(regex);
     var isHttps = false;
 
     config.success = config.success || function(){};
     config.error = config.error || function(){};
-    config.type = config.type.toUpperCase() || 'GET';
+    config.type = (config.type || 'GET').toUpperCase();
     config.charset = config.charset || 'utf-8';
 
-    if (mathed[1] == 'https')
+    if (matched[1] == 'https')
         isHttps = true;
 
     var option = {
-        hostname:mathed[2],
-        port:mathed[3] || (isHttps ? 443 : 80),
-        path:mathed[4] || '/',
-        method:config.type
+        hostname:matched[2],
+        port:matched[3] || (isHttps ? 443 : 80),
+        path:matched[4] || '/',
+        method:config.type,
+        headers:config.headers || {}
     };
 
     var data = json2querystr(config.data);
@@ -43,8 +44,6 @@ function run(config){
     }
 
     var _resHandler = function(res){
-        console.log("statusCode: ", res.statusCode);
-        console.log("headers: ", res.headers);
         res.setEncoding(config.charset);
         res.on('data', function(rs){
             config.success(rs);
@@ -59,7 +58,6 @@ function run(config){
     if (option.method == "POST")
         req.write(data);
     req.end();
-    console.log(option);
 }
 
 function get(url, data, success, dataType){

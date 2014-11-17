@@ -20,6 +20,13 @@ MySql.prototype = {
         else
             console.log(msg);
     },
+    transcation:function(func){
+        poolCluster.getConnection(that.id, function(err, conn){
+            conn.beginTransaction(function(e){
+                func.apply(this, [conn, e]);
+            });
+        });
+    },
     query:function(queryString, callback){
         var that = this;
         poolCluster.getConnection(that.id, function(err1, conn){
@@ -84,6 +91,11 @@ MySql.prototype = {
         //limit
         if (config.limit)
             queryString += " limit " + config.limit;
+
+        if (config.trans)
+        {
+
+        }
 
         return this.query(queryString, config.complete);
     },
@@ -259,6 +271,7 @@ function isType(type) {
         return {}.toString.call(obj) == "[object " + type + "]";
     };
 }
+
 var isString = isType("String"),
     isArray = isType("Array"),
     isObject = isType("Object");
