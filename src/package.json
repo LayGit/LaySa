@@ -1,6 +1,6 @@
 {
   "name": "sa",
-  "version": "0.2.15",
+  "version": "0.2.16",
   "description": "A nodejs lib for Nodejser to quickly build API.",
   "main": "Lay.js",
   "scripts": {

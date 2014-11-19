@@ -20,7 +20,8 @@ MySql.prototype = {
         else
             console.log(msg);
     },
-    transcation:function(func){
+    transaction:function(func){
+        var that = this;
         poolCluster.getConnection(that.id, function(err, conn){
             conn.beginTransaction(function(e){
                 func.apply(this, [conn, e]);
