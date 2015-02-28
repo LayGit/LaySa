@@ -226,6 +226,17 @@ MySql.prototype = {
     },
     addOrUpdate:function(config){
         config = config || {};
+    },
+    count:function(config){
+        config = config || {};
+        config.fields = config.fields || "*";
+        config.as = config.as || "count";
+        var queryString = "select count";
+        queryString += "(" + config.fields + ") as " + config.as;
+        queryString += " from " + config.table;
+        queryString += objToEqualString(config.where, " where ", " and ");
+
+        return this.query(queryString, config.complete);
     }
 };
 

@@ -3,6 +3,7 @@ var fs = require("fs");
 var vm = require("vm");
 var Howdo = require("howdo");
 var MySql = require("./Lib/Data/MySql").Instance;
+var Request = require("./Lib/Network/Request");
 exports.Instance = (function(){
     /**
      * 实例构造
@@ -75,6 +76,43 @@ exports.Instance = (function(){
         catch (e){
             return require(this.getRealPath(_module));
         }
+    };
+
+    /**
+     * 请求内部接口
+     * @param method    请求方式
+     * @param infPath   接口路径
+     * @param data      数据
+     * @param success   成功回调
+     * @param dataType  数据类型
+     */
+    Lay.prototype.request = function(method, infPath, data, success, dataType){
+        switch (method)
+        {
+            case this.CallType.GET:
+            case this.CallType.BOTH:
+                method = "GET";
+                break;
+            case this.CallType.POST:
+                method = "POST";
+                break;
+        }
+
+        // 拼接URL
+        var url = "";
+        var conf = this.Config;
+        url += conf.ssl ? "https://" : "http://";
+        url += "localhost";
+        url += conf.port ? ":" + conf.port : "";
+        url += infPath.charAt(0) == '/' ? "" : "/";
+        url += infPath;
+        Request.do({
+            type:method,
+            url:url,
+            data:data,
+            success:success,
+            dataType:dataType
+        });
     };
 
     /**
@@ -297,6 +335,18 @@ exports.Instance = (function(){
     {
         type = type || 'base64';
         return new Buffer(val, type);
+    };
+
+    /**
+     * 获取客户端IP
+     * @returns {*}
+     */
+    Lay.prototype.getClientIp = function(){
+        var req = this.http.request;
+        return req.headers['x-forwarded-for'] ||
+            req.connection.remoteAddress ||
+            req.socket.remoteAddress ||
+            req.connection.socket.remoteAddress;
     };
 
     function isType(type) {

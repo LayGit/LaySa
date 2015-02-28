@@ -3,6 +3,9 @@ var https = require("https");
 
 function json2querystr(data)
 {
+    if ((typeof data == 'string') && data.constructor == String)
+        return data;
+
     var querystr = "";
     for (var key in data)
     {
@@ -24,6 +27,7 @@ function run(config){
     config.error = config.error || function(){};
     config.type = (config.type || 'GET').toUpperCase();
     config.charset = config.charset || 'utf-8';
+    config.headers = config.headers || {};
 
     if (matched[1] == 'https')
         isHttps = true;
@@ -33,7 +37,7 @@ function run(config){
         port:matched[3] || (isHttps ? 443 : 80),
         path:matched[4] || '/',
         method:config.type,
-        headers:config.headers || {}
+        headers:config.headers
     };
 
     var data = json2querystr(config.data);
@@ -41,6 +45,24 @@ function run(config){
     if (option.method == "GET" && data)
     {
         option.path += "?" + data;
+    }
+
+    if (option.method == "POST" && data)
+    {
+        option.path = config.url;
+        if (config.dataType)
+        {
+            switch (config.dataType)
+            {
+                case "json":
+                    config.headers["Content-Type"] = "application/json";
+                    break;
+            }
+        }
+
+        var len = (new Buffer(data)).length;
+        option.headers["Content-Length"] = config.headers["Content-Length"] || len;
+        option.headers["Content-Type"] = config.headers["Content-Type"] || 'application/x-www-form-urlencoded';
     }
 
     var _resHandler = function(res){

@@ -37,6 +37,9 @@ var journey = require("journey");
 
     Lay.server = function(config){
 
+        var cluster = require('cluster');
+        var numCPUs = require('os').cpus().length;
+
         var _config = {
             port:8080,
             path:{
@@ -56,84 +59,106 @@ var journey = require("journey");
         object.extend(config, _config);
         Lay.Config = config;
 
-        /**
-         * 日志服务
-         */
-        if (config.path.log)
-        {
-            Lay.logger = logger.colorConsole({
-                transport:function(data){
-                    console.log(data.output);
-                    var _logPath = getRealPath(config.path.log);
-                    var _today = new Date(),
-                        _fileName = dateFormat(_today, "yyyyMMdd") + "." + data.title + ".log",
-                        output = data.timestamp + " <" + data.title + "," + data.level + "> " + data.file + ":" + data.line + ":" + data.pos + " | " + data.message;
+        if (cluster.isMaster) {
+            /**
+             * 日志服务
+             */
+            if (config.path.log)
+            {
+                Lay.logger = logger.colorConsole({
+                    transport:function(data){
+                        console.log(data.output);
+                        var _logPath = getRealPath(config.path.log);
+                        var _today = new Date(),
+                            _fileName = dateFormat(_today, "yyyyMMdd") + "." + data.title + ".log",
+                            output = data.timestamp + " <" + data.title + "," + data.level + "> " + data.file + ":" + data.line + ":" + data.pos + " | " + data.message;
 
-                    fs.open(path.join(_logPath, _fileName), 'a', 0666, function(e, id) {
-                        fs.write(id, output+"\n", null, 'utf8', function() {
-                            fs.close(id, function() {
+                        fs.open(path.join(_logPath, _fileName), 'a', 0666, function(e, id) {
+                            fs.write(id, output+"\n", null, 'utf8', function() {
+                                fs.close(id, function() {
+                                });
                             });
                         });
-                    });
+                    }
+                });
+            }
+
+            Howdo.task(function(done){
+                // 配置监测
+                Lay.logger.debug("项目配置检测...");
+
+
+                var _confPath = getRealPath(config.path.conf),
+                    _incptPath = getRealPath(config.path.interceptor),
+                    _ctrlPath = getRealPath(config.path.controller);
+
+                // 配置文件
+                if (_confPath)
+                {
+                    Lay.logger.debug("检查配置文件目录...");
+                    if (fs.existsSync(_confPath))
+                    {
+                        Lay.logger.debug("配置文件目录正常,数量:" + fs.readdirSync(_confPath).length);
+                    }
+                    else
+                    {
+                        Lay.logger.warn("配置文件目录不存在！");
+                    }
                 }
+
+                // 拦截器
+                if (_incptPath)
+                {
+                    if (fs.existsSync(_incptPath))
+                    {
+                        Lay.logger.debug("拦截器文件目录正常,数量:" + fs.readdirSync(_incptPath).length);
+                    }
+                    else
+                    {
+                        Lay.logger.warn("拦截器文件目录不存在！");
+                    }
+                }
+
+                // 接口
+                if (_ctrlPath)
+                {
+                    if (fs.existsSync(_ctrlPath))
+                    {
+                        Lay.logger.debug("接口文件目录正常,数量:" + fs.readdirSync(_ctrlPath).length);
+                    }
+                    else
+                    {
+                        Lay.logger.warn("接口文件目录不存在！");
+                    }
+                }
+
+                Lay.logger.debug("项目配置检测完毕！");
+                done(null);
+
+            }).together(function(err){
+                var _prefix = "http";
+                if (config.ssl)
+                {
+                    _prefix = "https";
+                }
+                Lay.logger.debug("创建监听服务(" + _prefix + ")...");
             });
-        }
 
-
-        Howdo.task(function(done){
-            // 配置监测
-            Lay.logger.debug("项目配置检测...");
-
-
-            var _confPath = getRealPath(config.path.conf),
-                _incptPath = getRealPath(config.path.interceptor),
-                _ctrlPath = getRealPath(config.path.controller);
-
-            // 配置文件
-            if (_confPath)
-            {
-                Lay.logger.debug("检查配置文件目录...");
-                if (fs.existsSync(_confPath))
-                {
-                    Lay.logger.debug("配置文件目录正常,数量:" + fs.readdirSync(_confPath).length);
-                }
-                else
-                {
-                    Lay.logger.warn("配置文件目录不存在！");
-                }
+            if (config.cpu > 0 && config.cpu < numCPUs)
+                numCPUs = config.cpu;
+            // Fork workers.
+            for (var i = 0; i < numCPUs; i++) {
+                cluster.fork();
             }
 
-            // 拦截器
-            if (_incptPath)
-            {
-                if (fs.existsSync(_incptPath))
-                {
-                    Lay.logger.debug("拦截器文件目录正常,数量:" + fs.readdirSync(_incptPath).length);
-                }
-                else
-                {
-                    Lay.logger.warn("拦截器文件目录不存在！");
-                }
-            }
+            cluster.on('listening',function(worker,address){
+                Lay.logger.debug("服务启动成功 pid:" + worker.process.pid + ",host:" + address.address + ",port:" + address.port);
+            });
 
-            // 接口
-            if (_ctrlPath)
-            {
-                if (fs.existsSync(_ctrlPath))
-                {
-                    Lay.logger.debug("接口文件目录正常,数量:" + fs.readdirSync(_ctrlPath).length);
-                }
-                else
-                {
-                    Lay.logger.warn("接口文件目录不存在！");
-                }
-            }
-
-            Lay.logger.debug("项目配置检测完毕！");
-            done(null);
-
-        }).together(function(err){
-            Lay.logger.debug("创建监听服务...");
+            cluster.on('exit', function(worker, code, signal) {
+                console.log('worker ' + worker.process.pid + ' died');
+            });
+        } else {
             // 创建路径路由
             var router = new(journey.Router);
 
@@ -181,18 +206,15 @@ var journey = require("journey");
                 config.ssl.key = fs.readFileSync(getRealPath(config.ssl.key));
                 config.ssl.cert = fs.readFileSync(getRealPath(config.ssl.cert));
                 _server = https.createServer(config.ssl, _handler);
-                _tip = "(https)";
             }
             else
             {
                 _server = http.createServer(_handler);
-                _tip = "(http)";
             }
 
             // 启动服务
             config.host ? _server.listen(config.port, config.host) : _server.listen(config.port);
-            Lay.logger.debug(_tip + "服务启动成功 " + _server.address().address + ":" + config.port);
-        });
+        }
     };
 
     function newLine(config, calltype, req, res, params)
